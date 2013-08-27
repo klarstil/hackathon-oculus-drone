@@ -1,7 +1,8 @@
 var http = require('http'),
     arDrone = require('ar-drone'),
     droneStream = require('dronestream'),
-    io = require('socket.io');
+    io = require('socket.io'),
+    colors = require('colors');
 
 /**
  * OculusDrone object
@@ -35,6 +36,9 @@ var oculusDrone = function() {
         /** @type {Boolean} Truthy to enable the key mapping, otherwise falsy */
         keyMapping: true,
 
+        /** @type {Boolean} Truthy to enable logging of altitude changes */
+        logAltitude: false,
+
         /** @type {Boolean} Truthy to log the battery changes of the drone */
         logBatteryStatus: true,
 
@@ -42,7 +46,20 @@ var oculusDrone = function() {
         criticalBatteryLevel: 15,
 
         /** @type {Number} Battery level (in percentage) where the user will be notified that the battery level is critical */
-        warningBatteryLevel: 20
+        warningBatteryLevel: 20,
+
+        /** @type {String} LED animation type. The following values are valid: 'blinkGreenRed', 'blinkGreen', 'blinkRed',
+         * 'blinkOrange', 'snakeGreenRed', 'fire', 'standard', 'red', 'green', 'redSnake', 'blank', 'rightMissile',
+         * 'leftMissile', 'doubleMissile', 'frontLeftGreenOthersRed', 'frontRightGreenOthersRed', 'rearRightGreenOthersRed',
+         * 'rearLeftGreenOthersRed', 'leftGreenRightRed', 'leftRedRightGreen', 'blinkStandard'
+         */
+        blinkAnimation: 'blinkGreenRed',
+
+        /** @type {Number} LED blinking animation duration in seconds */
+        blinkDuration: 2,
+
+        /** @type {Number} LED blinking frequency in hz */
+        blinkRate: 5
     };
 
     me.isInAir = false;
@@ -59,7 +76,7 @@ oculusDrone.prototype.init = function() {
     var me = this;
 
     if(me.settings.debug) {
-        console.log('Initializing the Oculus Drone');
+        console.log('[ok]'.green + ' Initializing the Oculus Drone');
     }
 
     me.httpServer = me.createHTTPServer();
@@ -99,7 +116,7 @@ oculusDrone.prototype.createHTTPServer = function() {
     var me = this;
 
     if(me.settings.debug) {
-        console.log('Starting HTTP Server at Port ' + me.settings.httpPort);
+        console.log('[ok]'.green + ' Starting HTTP Server at Port ' + me.settings.httpPort);
     }
 
     return http.createServer(function(req, res) {
@@ -123,7 +140,7 @@ oculusDrone.prototype.createDroneStream = function(httpServer) {
     droneStream.listen(httpServer);
 
     if(me.settings.debug) {
-        console.log('Starting DroneStream');
+        console.log('[ok]'.green + ' Starting DroneStream');
     }
 
     return true;
@@ -139,7 +156,7 @@ oculusDrone.prototype.createSocketConnection = function() {
     var me = this;
 
     if(me.settings.debug) {
-        console.log('Starting socket.io connection at Port ' + me.settings.socketPort);
+        console.log('[ok]'.green + ' Starting socket.io connection at Port ' + me.settings.socketPort);
     }
 
     return io.listen(me.settings.socketPort);
@@ -164,21 +181,26 @@ oculusDrone.prototype.setUpSocketEvents = function(socket, client) {
      * @param {Object} browser - Browser socket.io connection
      */
     var onSocketConnected = function(browser) {
-
+        var lastState = null;
         if(me.settings.debug) {
-            console.log('socket.io connection started successfully at Port ' + opts.socketPort);
+            console.log('[ok]'.green + ' socket.io connection started successfully at Port ' + opts.socketPort);
         }
 
         browser.on('rotation', function(event) {
             var y = event[1];
 
-            if(Math.abs(y) < 0.45) {
+            if(Math.abs(y) < 0.35 && lastState !== 'stop') {
                 client.stop();
+                lastState = 'stop';
             } else {
-                if(y < 0) {
+                if(y < 0 && lastState !== 'right') {
                     client.clockwise(opts.speed);
+                    lastState = 'right';
                 } else {
-                    client.counterClockwise(opts.speed);
+                    if(lastState !== 'left') {
+                        client.counterClockwise(opts.speed);
+                        lastState = 'left';
+                    }
                 }
             }
             console.log(event);
@@ -198,7 +220,7 @@ oculusDrone.prototype.createDroneClient = function() {
     var me = this;
 
     if(me.settings.debug) {
-        console.log('Starting AR.Drone client');
+        console.log('[ok]'.green + ' Starting AR.Drone client');
     }
 
     return arDrone.createClient(me.settings.droneIpAddress);
@@ -214,6 +236,10 @@ oculusDrone.prototype.setUpDroneClient = function(client) {
     var me = this,
         opts = me.settings;
 
+    client.config('general:navdata_demo', 'FALSE');
+    client.config('control:control_yaw', '6.1');
+    client.config('control:euler_angle_max', '0.25');
+
     // Disable emergency mode if it was triggered on the last fly
     client.disableEmergency();
 
@@ -223,27 +249,33 @@ oculusDrone.prototype.setUpDroneClient = function(client) {
     if(opts.logBatteryStatus) {
         client.on('batteryChange', function(num) {
             if(num <= opts.criticalBatteryLevel) {
-                console.log('Drone will be landed due to the critical battery level');
+                console.log('[critical]'.red + ' Drone will be landed due to the critical battery level');
                 client.stop();
                 client.land();
             } else {
                 if(num <= opts.warningBatteryLevel) {
-                    console.log('Battery status: ' + num + '%');
+                    console.log('[warning]'.yellow + ' Battery status: ' + num + '%');
                     console.log('Please land the drone before the battery died');
                 } else {
-                    console.log('Battery status: ' + num + '%');
+                    console.log('[info]'.cyan + ' Battery status: ' + num + '%');
                 }
             }
         });
     }
 
+    if(opts.logAltitude) {
+        client.on('altitudeChange', function(event) {
+            setInterval(function() {
+                console.log('[info]'.cyan + 'Altitude changed to ' + event);
+            }, 2000);
+        });
+    }
+
     client.on('landing', function(event) {
-        console.log(event);
         me.isInAir = false;
     });
 
     client.on('flying', function(event) {
-        console.log(event);
         me.isInAir = true;
     });
 
@@ -264,30 +296,31 @@ oculusDrone.prototype.bindKeyMapping = function(client) {
 
     process.stdin.setRawMode(true);
     process.stdin.on('data', function(chunk) {
-        var key = chunk.toString();
-
-        console.log('Key pressed:', key);
+        var key = chunk.toString(),
+            keyBuffer = chunk.toJSON();
 
         if(key === 't') {
             if(opts.debug) {
-                console.log('Takeoff drone');
+                console.log('[info]'.cyan + ' Takeoff drone');
             }
+            client.disableEmergency();
+            client.stop();
             client.takeoff();
             me.isInAir = true;
         } else if(key === 'l') {
             if(opts.debug) {
-                console.log('Land drone');
+                console.log('[info]'.cyan + ' Land drone');
             }
             client.land();
             me.isInAir = false;
-        } else if(key === 's') {
+        } else if(keyBuffer[0] === 32) {
             if(opts.debug) {
-                console.log('Stop drone movement');
+                console.log('[info]'.cyan + ' Stop drone movement');
             }
             client.stop();
-        } else if(key === 'q') {
+        } else if(keyBuffer[0] === 27) {
             if(opts.debug) {
-                console.log('Stop and land drone + kill Node.js process');
+                console.log('[info]'.cyan + ' Stop and land drone + kill Node.js process');
             }
             client.stop();
             client.land();
@@ -296,21 +329,74 @@ oculusDrone.prototype.bindKeyMapping = function(client) {
             process.exit();
         } else if(key === 'r') {
             if(opts.debug) {
-                console.log('Recover drone from emergency');
+                console.log('[info]'.cyan + ' Recover drone from emergency');
             }
             client.disableEmergency();
+        } else if(key === 'b') {
+            if(opts.debug) {
+                console.log('[info]'.cyan + ' Blinking drone :)');
+            }
+            client.animateLeds(opts.blinkAnimation, opts.blinkRate, opts.blinkDuration);
+        } else if(key === 'a') {
+            if(opts.debug) {
+                console.log('[info]'.cyan + ' Fly left')
+            }
+            client.left(opts.speed);
+        } else if(key === 'd') {
+            if(opts.debug) {
+                console.log('[info]'.cyan + ' Fly right')
+            }
+            client.right(opts.speed);
+        } else if(key === 'w') {
+            if(opts.debug) {
+                console.log('[info]'.cyan + ' Fly forward')
+            }
+            client.front(opts.speed);
+        } else if(key === 's') {
+            if(opts.debug) {
+                console.log('[info]'.cyan + ' Fly backward')
+            }
+            client.back(opts.speed);
+        } else if(key === '1') {
+            if(opts.debug) {
+                console.log('[info]'.cyan + ' Fly down');
+            }
+            client.down(opts.speed);
+        } else if(key === '2') {
+            if(opts.debug) {
+                console.log('[info]'.cyan + ' Fly up');
+            }
+            client.up(opts.speed);
+        } else if(key === 'q') {
+            if(opts.debug) {
+                console.log('[info]'.cyan + ' Fly counter clockwise');
+            }
+            client.counterClockwise(opts.speed);
+        } else if(key === 'e') {
+            if(opts.debug) {
+                console.log('[info]'.cyan + ' Fly clockwise');
+            }
+            client.clockwise(opts.speed);
         }
     });
 
-    if(me.settings.debug) {
-        // Key binding information
-        console.log('Key mapping started');
-        console.log('T - Takeoff drone');
-        console.log('L - Land drone');
-        console.log('S - Stop whole drone movement');
-        console.log('Q - Stop whole drone movement, land drone and kill the Node.js process');
-        console.log('R - Recover from emergency');
-    }
+    // Key binding information
+    console.log('[ok]'.green + ' Key mapping started');
+    console.log('T - Takeoff drone');
+    console.log('L - Land drone');
+    console.log('SPACE - Stop whole drone movement');
+    console.log('ESC - Stop whole drone movement, land drone and kill the Node.js process');
+    console.log('R - Recover from emergency');
+    console.log('B - Blinking LEDs');
+    console.log('W - Fly forward');
+    console.log('S - Fly backward');
+    console.log('A - Fly left');
+    console.log('D - Fly right');
+    console.log('1 - Fly down');
+    console.log('2 - Fly up');
+    console.log('Q - Turn counter clockwise');
+    console.log('E - Turn clockwise');
+    console.log("\r");
 
     return true;
 };

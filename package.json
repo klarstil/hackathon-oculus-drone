@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "ar-drone": "latest",
-    "dronestream": "latest"
+    "dronestream": "latest",
+    "colors": "latest"
   }
 }
