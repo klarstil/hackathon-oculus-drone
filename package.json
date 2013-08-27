@@ -2,7 +2,7 @@
   "name": "hackathon-oculus-drone",
   "version": "0.0.1",
   "description": "Control an AR.Drone using Oculus Rift and VR.js",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
