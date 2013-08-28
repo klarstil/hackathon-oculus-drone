@@ -59,7 +59,9 @@ var oculusDrone = function() {
         blinkDuration: 2,
 
         /** @type {Number} LED blinking frequency in hz */
-        blinkRate: 5
+        blinkRate: 5,
+
+        oculusAngle: 0.3
     };
 
     me.isInAir = false;
@@ -182,28 +184,33 @@ oculusDrone.prototype.setUpSocketEvents = function(socket, client) {
      */
     var onSocketConnected = function(browser) {
         var lastState = null;
-        if(me.settings.debug) {
+        if(opts.debug) {
             console.log('[ok]'.green + ' socket.io connection started successfully at Port ' + opts.socketPort);
         }
 
         browser.on('rotation', function(event) {
             var y = event[1];
 
-            if(Math.abs(y) < 0.35 && lastState !== 'stop') {
-                client.stop();
-                lastState = 'stop';
-            } else {
-                if(y < 0 && lastState !== 'right') {
-                    client.clockwise(opts.speed);
-                    lastState = 'right';
-                } else {
-                    if(lastState !== 'left') {
-                        client.counterClockwise(opts.speed);
-                        lastState = 'left';
-                    }
-                }
-            }
             console.log(event);
+
+            y = Math.floor(y * 100) / 100;
+
+            //turn left
+            if (y > opts.oculusAngle && lastState != 'left') {
+                lastState = 'left';
+                client.counterClockwise(opts.speed);
+                console.log('change state to left');
+            //turn right
+            } else if (y < -opts.oculusAngle && lastState != 'right') {
+                console.log('change state to right');
+                client.clockwise(opts.speed);
+                lastState = 'right';
+            //stop
+            } else if (y > -opts.oculusAngle && y < opts.oculusAngle && lastState != 'stop') {
+                lastState = 'stop';
+                client.stop();
+                console.log('change state to stop');
+            }
         });
     };
     socket.on('connection', onSocketConnected);
