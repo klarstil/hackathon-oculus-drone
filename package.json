@@ -1,22 +1,24 @@
 {
-  "name": "hackathon-oculus-drone",
-  "version": "0.0.1",
-  "description": "Control an AR.Drone using Oculus Rift and VR.js",
-  "main": "app.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/klarstil/hackathon-oculus-drone.git"
-  },
-  "author": "klarstil",
-  "bugs": {
-    "url": "https://github.com/klarstil/hackathon-oculus-drone/issues"
-  },
-  "dependencies": {
-    "ar-drone": "latest",
-    "dronestream": "latest",
-    "colors": "latest"
-  }
+    "name": "hackathon-oculus-drone",
+    "version": "0.0.1",
+    "description": "Control an AR.Drone using Oculus Rift and VR.js",
+    "main": "app.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git://github.com/klarstil/hackathon-oculus-drone.git"
+    },
+    "author": "klarstil",
+    "bugs": {
+        "url": "https://github.com/klarstil/hackathon-oculus-drone/issues"
+    },
+    "dependencies": {
+        "ar-drone": "latest",
+        "dronestream": "latest",
+        "colors": "latest",
+        "express": "latest",
+        "ar-drone-png-stream": "latest"
+}
 }

@@ -1,8 +1,11 @@
-var http = require('http'),
-    arDrone = require('ar-drone'),
+var express = require('express'),
+    app = express(),
+    path = require('path'),
+    arDrone = require('ar-drone')
     droneStream = require('dronestream'),
     io = require('socket.io'),
-    colors = require('colors');
+    colors = require('colors'),
+    server = require('http').createServer(app);
 
 /**
  * OculusDrone object
@@ -83,10 +86,11 @@ oculusDrone.prototype.init = function() {
 
     me.httpServer = me.createHTTPServer();
     me.httpServer.listen(me.settings.httpPort);
-    me.createDroneStream(me.httpServer);
 
     me.client = me.createDroneClient();
     me.setUpDroneClient(me.client);
+    me.createDroneStream(me.httpServer);
+    //pngStream(me.client, { port: 9000 });
 
     me.socket = me.createSocketConnection();
     me.setUpSocketEvents(me.socket, me.client);
@@ -118,34 +122,49 @@ oculusDrone.prototype.createHTTPServer = function() {
     var me = this;
 
     if(me.settings.debug) {
-        console.log('[ok]'.green + ' Starting HTTP Server at Port ' + me.settings.httpPort);
+        console.log('[ok]'.green + ' Starting express server at Port ' + me.settings.httpPort);
     }
 
-    return http.createServer(function(req, res) {
-        require('fs').createReadStream(__dirname + me.settings.htmlFile).pipe(res);
+    app.all('*', function(req, res, next) {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", "X-Requested-With");
+        next();
     });
+
+    app.get("/", function(req, res) {
+        res.redirect(me.settings.htmlFile);
+    });
+
+    app.configure(function(){
+        app.use(express.methodOverride());
+        app.use(express.bodyParser());
+        app.use(express.static(path.join(__dirname, 'public')));
+        app.use(express.errorHandler({
+            dumpExceptions: true,
+            showStack: true
+        }));
+        app.use(express.logger('dev'));
+        app.use(app.router);
+    });
+
+    return server;
 };
 
 /**
- * Creates the `node-dronestream` module and bind it
+ * Creates the `ar-drone-png-stream` module and bind it
  * to the HTTP server.
  *
- * @param { Object } httpServer - The instance of the HTTP server
+ * @param { Object } client - The instance of the AR.Drone client
  * @returns {Boolean}
  */
 oculusDrone.prototype.createDroneStream = function(httpServer) {
     var me = this;
 
-    if(!httpServer) {
-        return false;
-    }
     droneStream.listen(httpServer);
 
     if(me.settings.debug) {
         console.log('[ok]'.green + ' Starting DroneStream');
     }
-
-    return true;
 };
 
 /**
@@ -190,8 +209,6 @@ oculusDrone.prototype.setUpSocketEvents = function(socket, client) {
 
         browser.on('rotation', function(event) {
             var y = event[1];
-
-            console.log(event);
 
             y = Math.floor(y * 100) / 100;
 

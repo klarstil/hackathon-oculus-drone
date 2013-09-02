@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8">
+	<title>Oculus Drone</title>
+
+    <script src="/javascript/jquery.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/javascript/vr.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/javascript/three.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="/javascript/controls/OculusRiftControls.js"></script>
+    <script src="/javascript/effects/OculusRiftEffect.js"></script>
+    <script src="http://localhost:8080/socket.io/socket.io.js"></script>
+    <script src="/dronestream/nodecopter-client.js" type="text/javascript" charset="utf-8"></script>
+</head>
+<body>
+<div id="help">Move this window to your Rift (use the Windows key + arrows to get it there fast) then hit 'f' to make it fullscreen.</div>
+<div id="info">IPD: <span id='ipd'>0</span> (+o/-p)</div>
+
+<div id="droneStream"></div>
+
+<script>
+$(document).ready(function() {
+    var streamCtx = document.getElementById('droneStream');
+    var copterStream = new NodecopterStream(streamCtx);
+    var canvas = streamCtx.children[0];
+    var ctx = canvas.getContext('experimental-webgl');
+    console.log(ctx.activeTexture());
+    console.dir(canvas);
+
+    window.setInterval(function() {
+        console.log(canvas.toDataURL());
+    }, 500);
+});
+/* (function() {
+
+
+    var camera, scene, renderer;
+    var geometry, material, mesh;
+    var controls, time = Date.now(),
+        textures = [], materials = [],
+        size = 256, texture;
+
+    var effect; // rift effect
+
+    var objects = [];
+
+    var ray;
+
+    if (!vr.isInstalled()) {
+        //statusEl.innerText = 'NPVR plugin not installed!';
+        alert('NPVR plugin not installed!');
+    }
+    vr.load(function(error) {
+        if (error) {
+            //statusEl.innerText = 'Plugin load failed: ' + error.toString();
+            alert('Plugin load failed: ' + error.toString());
+        }
+
+        init();
+        animate();
+        //statusEl.innerText = e.toString();
+    });
+
+    function changeCanvas() {
+        return null;
+    }
+
+    function init() {
+
+        camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1000 );
+
+        scene = new THREE.Scene();
+        scene.fog = new THREE.Fog( 0xffffff, 0, 750 );
+
+        var light = new THREE.DirectionalLight( 0xffffff, 1.5 );
+        light.position.set( 1, 1, 1 );
+        scene.add( light );
+
+        var light = new THREE.DirectionalLight( 0xffffff, 0.75 );
+        light.position.set( -1, - 0.5, -1 );
+        scene.add( light );
+
+        //controls = new THREE.OculusRiftControls( camera );
+        //scene.add( controls.getObject() );
+
+        var cameraHelper = new THREE.CameraHelper(camera);
+        scene.add(cameraHelper);
+
+        var geometry = new THREE.CubeGeometry(640, 320, 20);
+        texture = THREE.ImageUtils.loadTexture('http://localhost:9000');
+        console.log(texture);
+
+        var material = new THREE.MeshLambertMaterial( { map: texture } );
+
+        var cube = new THREE.Mesh(geometry, material);
+            cube.position.set(0, 0, -500);
+
+        scene.add(cube);
+
+        renderer = new THREE.WebGLRenderer({
+            devicePixelRatio: 1,
+            alpha: false,
+            clearColor: 0xffffff,
+            antialias: true
+        });
+
+        effect = new THREE.OculusRiftEffect( renderer );
+
+        document.getElementById('ipd').innerHTML =
+                effect.getInterpupillaryDistance().toFixed(3);
+
+        document.body.appendChild( renderer.domElement );
+
+        //
+
+        window.addEventListener( 'resize', onWindowResize, false );
+        document.addEventListener( 'keydown', keyPressed, false );
+    }
+
+    function onWindowResize() {
+    }
+
+    function keyPressed (event) {
+        switch ( event.keyCode ) {
+            case 79: // o
+                effect.setInterpupillaryDistance(
+                        effect.getInterpupillaryDistance() - 0.001);
+                document.getElementById('ipd').innerHTML =
+                        effect.getInterpupillaryDistance().toFixed(3);
+                break;
+            case 80: // p
+                effect.setInterpupillaryDistance(
+                        effect.getInterpupillaryDistance() + 0.001);
+                document.getElementById('ipd').innerHTML =
+                        effect.getInterpupillaryDistance().toFixed(3);
+                break;
+
+            case 70: // f
+                if (!vr.isFullScreen()) {
+                    vr.enterFullScreen();
+                } else {
+                    vr.exitFullScreen();
+                }
+                e.preventDefault();
+                break;
+
+            case 32: // space
+                vr.resetHmdOrientation();
+                e.preventDefault();
+                break;
+        }
+    }
+
+    var vrstate = new vr.State();
+    function animate() {
+        vr.requestAnimationFrame(animate);
+
+        // Poll VR, if it's ready.
+        var polled = vr.pollState(vrstate);
+        //controls.update( Date.now() - time, polled ? vrstate : null );
+        texture.needsUpdate = true;
+
+        // renderer.render( scene, camera );
+        effect.render( scene, camera, polled ? vrstate : null );
+
+        time = Date.now();
+    }
+})(); */
+</script>
+
+<script type="text/javascript">
+window.onload = function() {
+	init();
+}
+
+var init = function() {
+	var socket = io.connect('http://localhost:8080');
+	
+	socket.on('connect', function() {
+		console.log('socket connected');
+	});
+	
+	vr.load(function(error) {
+		if(error) {
+			console.error(error.toString());
+		}
+	});
+	
+	var vrstate = new vr.State();
+	
+	function tick() {
+		vr.requestAnimationFrame(tick);
+		
+		if(!vr.pollState(vrstate)) {
+			return;
+		}
+		
+		if (!vrstate.hmd.present) {
+			console.log('Oculus Rift not found');
+			return;
+		}
+
+		socket.emit('rotation', vrstate.hmd.rotation);
+
+	}
+	vr.requestAnimationFrame(tick);
+}
+</script>
+</body>
+</html>
