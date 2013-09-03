@@ -63,7 +63,7 @@ var oculusDrone = function() {
 
         /** @type {Number} LED blinking frequency in hz */
         blinkRate: 5,
-
+        /** @type {Number} The minimum angle of the Oculus Rift where the drone start rotating (counter) clockwise. */
         oculusAngle: 0.3
     };
 
